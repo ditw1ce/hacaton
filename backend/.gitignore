@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.log
+
+# Virtual environment
+venv/
+env/
+
+# Model weights
+*.pt
+*.onnx
+*.h5
+
+# Streamlit cache
+.streamlit/
+
+# Results and temp files
+results/
+*.jpg
+*.png
+*.zip
+*.json
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
