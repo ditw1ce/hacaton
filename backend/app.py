@@ -6,6 +6,7 @@ from processing.clustering import cluster_embeddings, assign_person_ids
 from processing.visualization import render_annotated_image
 from PIL import Image
 import os
+import hashlib
 
 def process_folder(folder, eps=0.5, min_samples=2):
     timer = Timer()
@@ -24,6 +25,8 @@ def process_folder(folder, eps=0.5, min_samples=2):
             for j, bbox in enumerate(boxes):
                 face_img = crop_face(img, bbox)
                 emb = embed_face(face_img)
+                if emb is None:
+                    continue
                 embeddings.append(emb)
                 index_map.append((i, j))
                 faces_info.append({"bbox": bbox, "label": None})
@@ -32,20 +35,26 @@ def process_folder(folder, eps=0.5, min_samples=2):
 
     # Cluster
     timer.start()
-    labels = cluster_embeddings(embeddings, eps=eps, min_samples=min_samples, metric='cosine')
-    person_ids = assign_person_ids(labels)
+    if embeddings:
+        labels = cluster_embeddings(embeddings, eps=eps, min_samples=min_samples, metric='cosine')
+        person_ids = assign_person_ids(labels)
+        for k, (img_idx, face_idx) in enumerate(index_map):
+            all_faces[img_idx]["faces"][face_idx]["label"] = person_ids[k]
     timer.stop("Cluster")
-
-    # Assign labels back
-    for k, (img_idx, face_idx) in enumerate(index_map):
-        all_faces[img_idx]["faces"][face_idx]["label"] = person_ids[k]
 
     # Render and save
     os.makedirs("results", exist_ok=True)
     for item in all_faces:
         annotated = render_annotated_image(item["image"], item["faces"])
-        out_path = os.path.join("results", os.path.basename(item["path"]))
-        Image.fromarray(annotated).save(out_path)
+        annotated_pil = Image.fromarray(annotated)
+
+        # Генерация уникального имени файла
+        name, ext = os.path.splitext(os.path.basename(item["path"]))
+        hash_suffix = hashlib.md5(item["path"].encode()).hexdigest()[:6]
+        out_path = os.path.join("results", f"{name}_{hash_suffix}{ext}")
+
+        annotated_pil.save(out_path)
+
     return all_faces
 
 if __name__ == "__main__":

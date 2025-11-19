@@ -1,8 +1,6 @@
-numpy
+ultralytics==8.1.14
 opencv-python
-scikit-learn
-facenet-pytorch
-torch
+numpy
 Pillow
-hdbscan
-streamlit
+insightface==0.7.3
+scikit-learn
