@@ -7,7 +7,11 @@ from processing.database import init_db, find_matching_face, save_face
 from processing.clustering import cluster_embeddings, assign_person_ids
 import os, hashlib
 
-def process_folder(folder, eps=0.5, min_samples=2):
+def process_folder(folder, mode="interactive", eps=0.5, min_samples=2):
+    """
+    mode = "interactive" -> спрашивает имена для новых кластеров
+    mode = "auto"        -> автоматически присваивает person_1, person_2...
+    """
     init_db()
     timer = Timer()
     image_paths = list_images(folder)
@@ -53,37 +57,35 @@ def process_folder(folder, eps=0.5, min_samples=2):
         labels = cluster_embeddings(unknown_embeddings, eps=eps, min_samples=min_samples, metric='cosine')
         person_ids = assign_person_ids(labels)
 
-        # спрашиваем имя для каждого нового кластера
         cluster_name_map = {}
         for lbl in set(person_ids):
-            if lbl == "unknown":
-                continue
-
-            # берём первое лицо из кластера для превью
-            idx = person_ids.index(lbl)
-            img_idx, face_idx = unknown_index_map[idx]
-            face_bbox = all_faces[img_idx]["faces"][face_idx]["bbox"]
-            pil_img = all_faces[img_idx]["image"]
-
-            x1, y1, x2, y2 = map(int, face_bbox)
-            face_crop = pil_img.crop((x1, y1, x2, y2))
-            preview_path = os.path.join("results", f"preview_{lbl}.jpg")
-            face_crop.save(preview_path)
-            print(f"Открой {preview_path}, чтобы увидеть лицо для {lbl}")
-
-            # спрашиваем имя
-            name = input(f"Введите имя для {lbl}: ").strip()
-            if name:
-                cluster_name_map[lbl] = name
+            if mode == "auto":
+                # просто присваиваем person_X
+                cluster_name_map[lbl] = lbl if lbl != "unknown" else "unknown"
             else:
-                cluster_name_map[lbl] = "unknown"
+                # interactive: показываем превью и спрашиваем имя
+                if lbl == "unknown":
+                    continue
+                idx = person_ids.index(lbl)
+                img_idx, face_idx = unknown_index_map[idx]
+                face_bbox = all_faces[img_idx]["faces"][face_idx]["bbox"]
+                pil_img = all_faces[img_idx]["image"]
+
+                x1, y1, x2, y2 = map(int, face_bbox)
+                face_crop = pil_img.crop((x1, y1, x2, y2))
+                preview_path = os.path.join("results", f"preview_{lbl}.jpg")
+                face_crop.save(preview_path)
+                print(f"Открой {preview_path}, чтобы увидеть лицо для {lbl}")
+
+                name = input(f"Введите имя для {lbl}: ").strip()
+                cluster_name_map[lbl] = name if name else "unknown"
 
         # присваиваем имена и сохраняем в базу
         for k, (img_idx, face_idx) in enumerate(unknown_index_map):
             cluster_label = person_ids[k]
-            final_name = cluster_name_map.get(cluster_label, "unknown")
+            final_name = cluster_name_map.get(cluster_label, cluster_label)
             all_faces[img_idx]["faces"][face_idx]["label"] = final_name
-            if final_name != "unknown":
+            if final_name != "unknown" and mode == "interactive":
                 save_face(final_name, unknown_embeddings[k])
                 print(f"  лицо {face_idx}: сохранено как {final_name}")
     else:
@@ -104,5 +106,6 @@ def process_folder(folder, eps=0.5, min_samples=2):
 
 if __name__ == "__main__":
     folder = "data_examples"
-    results = process_folder(folder)
+    # выбери режим: "auto" или "interactive"
+    results = process_folder(folder, mode="auto")
     print(f"Processed {len(results)} images. See results/ for annotated outputs.")
