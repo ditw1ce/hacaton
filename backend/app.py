@@ -1,36 +1,35 @@
+# app.py
 from utils.io import list_images, load_image
 from utils.timer import Timer
-from processing.detection import detect_faces
-from processing.embedding import crop_face, embed_face
+from processing.embedding import embed_face   # убрали crop_face
 from processing.clustering import cluster_embeddings, assign_person_ids
 from processing.visualization import render_annotated_image
-from PIL import Image
-import os
-import hashlib
+from processing.detection import detect_faces
+import os, hashlib
 
 def process_folder(folder, eps=0.5, min_samples=2):
     timer = Timer()
     image_paths = list_images(folder)
-    all_faces = []   # per-image faces info
-    embeddings = []  # flat list of embeddings
-    index_map = []   # (image_idx, face_idx) for each embedding
+    all_faces, embeddings, index_map = [], [], []
 
     # Detect + Embed
     timer.start()
     for i, path in enumerate(image_paths):
-        img = load_image(path)
+        img = load_image(path)  # PIL.Image
         boxes, probs = detect_faces(img)
+        print(f"{path}: YOLO нашёл {len(boxes)} боксов")
         faces_info = []
-        if boxes:
-            for j, bbox in enumerate(boxes):
-                face_img = crop_face(img, bbox)
-                emb = embed_face(face_img)
-                if emb is None:
-                    continue
-                embeddings.append(emb)
-                index_map.append((i, j))
-                faces_info.append({"bbox": bbox, "label": None})
+        for j, bbox in enumerate(boxes):
+            emb = embed_face(img, bbox)   # передаём всё изображение и bbox
+            if emb is None:
+                faces_info.append({"bbox": bbox, "label": "no-embedding"})
+                print(f"  лицо {j}: эмбеддинг не получен")
+                continue
+            embeddings.append(emb)
+            index_map.append((i, j))
+            faces_info.append({"bbox": bbox, "label": None})
         all_faces.append({"path": path, "image": img, "faces": faces_info})
+        print(f"{path}: добавлено {len(faces_info)} лиц")
     timer.stop("Detect+Embed")
 
     # Cluster
@@ -40,20 +39,19 @@ def process_folder(folder, eps=0.5, min_samples=2):
         person_ids = assign_person_ids(labels)
         for k, (img_idx, face_idx) in enumerate(index_map):
             all_faces[img_idx]["faces"][face_idx]["label"] = person_ids[k]
+    else:
+        print("⚠️ Нет лиц для кластеризации")
     timer.stop("Cluster")
 
     # Render and save
     os.makedirs("results", exist_ok=True)
     for item in all_faces:
-        annotated = render_annotated_image(item["image"], item["faces"])
-        annotated_pil = Image.fromarray(annotated)
-
-        # Генерация уникального имени файла
+        annotated_pil = render_annotated_image(item["image"], item["faces"])  # возвращает PIL.Image
         name, ext = os.path.splitext(os.path.basename(item["path"]))
         hash_suffix = hashlib.md5(item["path"].encode()).hexdigest()[:6]
         out_path = os.path.join("results", f"{name}_{hash_suffix}{ext}")
-
         annotated_pil.save(out_path)
+        print(f"Сохранено: {out_path}")
 
     return all_faces
 
