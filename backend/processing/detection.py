@@ -18,6 +18,5 @@ def detect_faces(pil_image, conf_thresh=0.5):
             xyxy = box.xyxy[0].cpu().numpy().astype(int).tolist()
             boxes.append(xyxy)
             probs.append(conf)
-            print('boxes', boxes)
-            print('probs', probs)
+
     return boxes, probs
