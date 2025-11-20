@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.cluster import DBSCAN
 
-def cluster_embeddings(embeddings, eps=0.5, min_samples=2, metric='cosine'):
+def cluster_embeddings(embeddings, eps=0.3, min_samples=2, metric='cosine'):
     if len(embeddings) == 0:
         return []
     X = np.array(embeddings, dtype=np.float32)
