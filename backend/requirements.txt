@@ -1,0 +1,7 @@
+ultralytics==8.1.14
+opencv-python
+numpy
+Pillow
+insightface==0.7.3
+scikit-learn
+onnxruntime
